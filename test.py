@@ -1,7 +1,8 @@
-a = tuple(sorted((1, 2)))
+class A:
 
-b = tuple(sorted((2, 1)))
+    def sum(self, x, y):
+        return x + y
 
-c = set((a, b))
+a = A()
 
-print(c)
+print(a.sum(1, 2))
