@@ -1,11 +1,18 @@
 from multiprocessing import Pool
+from random import random
 import requests
 from time import sleep
 import json
 
 
+def split_list(lst: list, n: int):
+    
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
+
+
 class User:
-    def __init__(self, id, name=None, friends=None) -> None:
+    def __init__(self, id, name=None, friends=[]) -> None:
         self.id = id 
         self.name = name
         self.friends = friends
@@ -17,15 +24,12 @@ class User_graph:
         self.users = {}
 
 
-    def add_user(self, id, name=None, friends=None):
+    def add_user(self, id, name=None, friends=[]):
         if id in self.users:
             return None
 
         self.users[id] = User(id, name, friends)
 
-
-    def save(self):
-        pass
 
     @staticmethod
     def reqwest(args):
@@ -50,7 +54,7 @@ class User_graph:
                     raise Exception('wrong access_token')
 
                 elif error_code == 6: #too many requests per second
-                    sleep(1)
+                    sleep(random()*2)
 
                 elif error_code == 15: #access denied
                         return None
@@ -74,16 +78,15 @@ class User_graph:
 
     def get_friends(self, url_params, *ids):
         reqwests = []
-        #print(ids)
 
         for id in ids:
-            if self.users[id].friends:
+            if len(self.users[id].friends) != 0:
                 continue
 
             reqwests.append((id, f"https://api.vk.com/method/friends.get?user_id={id}&access_token={url_params['access_token']}&v={url_params['v']}"))
         
-        with Pool(100) as p:
-            data = p.map(User_graph.reqwest, reqwests)
+        with Pool(50) as p:
+            data = p.map(self.__class__.reqwest, reqwests)
 
         for entry in data:
             if entry == None:
@@ -98,49 +101,24 @@ class User_graph:
             self.users[id].friends = friends
 
 
-
-    """
-    def get_friends(self, params):
-        for _ in range(3):
-            try:
-                response = requests.get(f"https://api.vk.com/method/friends.get?user_id={self.id}&access_token={params['access_token']}&v={params['v']}")
-
-                self.friends = json.loads(response.text)['response']['items'] #seems like a bad solution, but oh well
-
-                for id in self.friends:
-                    User(id)
-
-                break
-
-            except KeyError:
-                break
-
-        else:
-            raise Exception('failed to fetch correct response')
-            
-        #print('done', self.id)
+    def get_names(self, url_params, *ids):
+        reqwests = []
+        
+        for chunk in list(split_list(ids, 5)):
+            reqwests.append((0, f"https://api.vk.com/method/users.get?user_id={','.join(map(str, chunk))}&access_token={url_params['access_token']}&v={url_params['v']}"))
 
 
-    def get_name(self, params):
-        if self.name:
-            return None
+        with Pool(50) as p:
+            data = p.map(self.__class__.reqwest, reqwests)
 
-        for _ in range(3):
-            try:
-                response = requests.get(f"https://api.vk.com/method/users.get?user_id={self.id}&access_token={params['access_token']}&v={params['v']}")
-                response = json.loads(response.text)['response'][0]
+        for chunk in data:
+            chunk = chunk[1]
 
-                self.name = response['first_name']
-                self.name += ' ' + response['last_name']
+            response = chunk['response']
 
-                break
-
-            except KeyError:
-                break
-
-        else:
-            raise Exception('failed to fetch correct response')
-    """
+            for entry in response:
+                id = entry['id']
+                self.users[id].name = f"{entry['first_name']} {entry['last_name']}"
 
 
     def clean(self):
@@ -149,9 +127,50 @@ class User_graph:
                 del self.users[id]
 
 
+    def save(self):
+        edges = set()
+        vertices = set()
+        name_dict = {}
+
+
+        for user in list(self.users.values()):
+            vertices.add(user.id)
+
+            name_dict[user.id] = user.name
+
+            for friend in user.friends:
+                if friend in self.users.keys():
+                    edges.add(tuple(sorted((user.id, friend))))
+
+
+        edges, vertices = map(list, (edges, vertices))
+        data = {'edges': edges, 'vertices': vertices, 'name_dict': name_dict}
+
+        with open("data.json", "w") as file:
+            file.write(json.dumps(data, indent=4))
+
+
+    def load(self):
+        with open("data.json", "r") as file:
+            data = json.load(file)
+
+            edges = data['edges']
+            vertices = data['vertices']
+            name_dict = data['name_dict']
+
+
+        for id in vertices:
+            self.add_user(id, name_dict[str(id)], [])
+
+        for relation in edges:
+            self.users[relation[0]].friends.append(relation[1])
+            self.users[relation[1]].friends.append(relation[0])
+
+
+
 def test():
     params = {
-    'access_token': 'vk1.a.ePRZ5JV63lzIh386JBs_y0BDTn1fzC8VwG8ZaxP0kva2ig_PAUUtxCMW6kZz9lJ4JwXfaDkLPqyydB9ZSWzVkpou7dQBlV-rFLavJNsqEB0zfVAoJbJC8TbH13fHzeAWomc0bePVE4LuAOPs7Q__YvoWNIKZUeuYHQ9w7Or_ICrFbF6ktrHbNsmoKW0rOR80',
+    'access_token': 'vk1.a.BUEA0HnrOtWWcu0IBGL1fnN6DqSLEmnzL8MKHzJc989uSXggoKiKXEJc1uDHZtN9kNE5fyrCkmD4hh0G6Q80lmazZEzCl2k0WSMOdZlnMCXkQmGpYPApqBJwd8QbhcwY5EqSIMLKFFR2zypqyWLEsLycPQTGpoK5PR9_v11kshCZJ9ZUSahGXPX_ALNzdQGS',
     'v': 5.131
     }
 
@@ -164,23 +183,8 @@ def test():
         graph.get_friends(params, *graph.users.keys())
 
     graph.clean()
-
-    edges = set()
-    vertices = set()
-    name_dict = {}
-
-    for user in list(graph.users.values()):
-        vertices.add(user.id)
-
-        #user.get_name(params)
-        #name_dict[user.id] = user.name
-
-        for friend in user.friends:
-            if friend in graph.users.keys():
-                edges.add(tuple(sorted((user.id, friend))))
-
-
-    print('{}, {}, {}'.format(list(vertices), list(edges), name_dict))
+    graph.get_names(params, *graph.users.keys())
+    graph.save()
 
 
 if __name__ == '__main__': test()

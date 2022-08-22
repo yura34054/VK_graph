@@ -1,8 +1,12 @@
-class A:
+a = list(range(17))
 
-    def sum(self, x, y):
-        return x + y
 
-a = A()
+def split_list(lst: list, n: int):
+    
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
 
-print(a.sum(1, 2))
+
+x = list(split_list(a, 5))
+
+print(x)
