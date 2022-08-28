@@ -33,10 +33,10 @@ class User_graph:
 
     @staticmethod
     def reqwest(args):
-        id, url = args
+        tracker, url = args
         tries = 0
 
-        while tries <= 3:
+        while tries <= 5:
             try:
                 response = requests.get(url)
                 response = json.loads(response.text)
@@ -57,9 +57,12 @@ class User_graph:
                     sleep(random()*2)
 
                 elif error_code == 15: #access denied
-                        return None
+                    return None
 
                 elif error_code == 18: #page delited
+                    return None
+
+                elif error_code == 29: #rate limit reached
                     return None
 
                 elif error_code == 30: #profile is privet
@@ -68,43 +71,53 @@ class User_graph:
                 else:
                     print(f'unknown error code - {error_code}')
                     print(url)
+                    tries += 1
 
             else:
-                return id, response
+                return tracker, response
                 
             
-        raise Exception('failed to fetch correct response')
+        print('failed to fetch correct response, tracker:', tracker)
 
 
     def get_friends(self, url_params, *ids):
         reqwests = []
+        ids = list(ids)
+        #print(ids)
+        code = "var index = {l};var users = {u};var answ = [];while (index != -1){{var user = users[index];answ.push([user, API.friends.get({{'user_id': user}})]);index = index - 1;}};return answ;"
 
         for id in ids:
             if len(self.users[id].friends) != 0:
-                continue
+                ids.remove(id)
 
-            reqwests.append((id, f"https://api.vk.com/method/friends.get?user_id={id}&access_token={url_params['access_token']}&v={url_params['v']}"))
-        
+        print(f'collecting friends for {len(ids)} users')
+
+        for chunk in list(split_list(ids, 25)):
+            reqwests.append((0, f"https://api.vk.com/method/execute?code={code.format(l = len(chunk) - 1, u = list(chunk))}&access_token={url_params['access_token']}&v={url_params['v']}"))
+
         with Pool(50) as p:
             data = p.map(self.__class__.reqwest, reqwests)
 
-        for entry in data:
-            if entry == None:
-                continue
-            
-            id, response = entry
-            friends = response['response']['items']
+        for chunk in data:
+            print(chunk)
+            print(chunk[1])
+            for user_data in chunk[1]['response']:
+                if not user_data[1]:
+                    continue
 
-            for friend in friends:
-                self.add_user(friend)
+                id, friends = user_data[0], user_data[1]['items'] 
 
-            self.users[id].friends = friends
+                for friend in friends:
+                    self.add_user(friend)
+
+                self.users[id].friends = friends
+                #print(id, len(friends))
 
 
     def get_names(self, url_params, *ids):
         reqwests = []
         
-        for chunk in list(split_list(ids, 5)):
+        for chunk in list(split_list(ids, 500)):
             reqwests.append((0, f"https://api.vk.com/method/users.get?user_id={','.join(map(str, chunk))}&access_token={url_params['access_token']}&v={url_params['v']}"))
 
 
@@ -123,11 +136,12 @@ class User_graph:
 
     def clean(self):
         for id, user in tuple(self.users.items()):
-            if not user.friends:
+            if len(user.friends) == 0:
                 del self.users[id]
 
 
     def save(self):
+        print('saving...')
         edges = set()
         vertices = set()
         name_dict = {}
@@ -148,6 +162,8 @@ class User_graph:
 
         with open("data.json", "w") as file:
             file.write(json.dumps(data, indent=4))
+
+        print('saved!')
 
 
     def load(self):
@@ -170,8 +186,8 @@ class User_graph:
 
 def test():
     params = {
-    'access_token': 'vk1.a.BUEA0HnrOtWWcu0IBGL1fnN6DqSLEmnzL8MKHzJc989uSXggoKiKXEJc1uDHZtN9kNE5fyrCkmD4hh0G6Q80lmazZEzCl2k0WSMOdZlnMCXkQmGpYPApqBJwd8QbhcwY5EqSIMLKFFR2zypqyWLEsLycPQTGpoK5PR9_v11kshCZJ9ZUSahGXPX_ALNzdQGS',
-    'v': 5.131
+    'access_token': 'access_token',
+    'v': 5.131,
     }
 
     graph = User_graph()
@@ -182,7 +198,9 @@ def test():
     for _ in range(2):
         graph.get_friends(params, *graph.users.keys())
 
+
     graph.clean()
+    #print(len(graph.users.keys()))
     graph.get_names(params, *graph.users.keys())
     graph.save()
 
