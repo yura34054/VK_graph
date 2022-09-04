@@ -184,8 +184,8 @@ class User_graph:
 
 def test():
     params = {
-    'access_token': 'vk1.a.clONUzPX1XFoDfLjstY_sXd3tysvPUWgPAQvaJETFrMwxGN4z9b576nNg1cYKr9X2oS-pb7hEhvu8oUYicZ9eKTHW-7WX7YEbCU_MmNyg0CFpYukNtxJGdeCrtR5RAiHmN5O2-CzgPlZ2HG7vsKYYJv_ZDn-4IBIfsObkbnkioOOYAcv3rV1XBCZxQAsvFNO',
-    'v': 5.131,
+    'access_token': '!access_token',
+    'v': 5.131
     }
 
     graph = User_graph()
