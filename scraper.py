@@ -99,8 +99,6 @@ class User_graph:
             data = p.map(self.__class__.reqwest, reqwests)
 
         for chunk in data:
-            print(chunk)
-            print(chunk[1])
             for user_data in chunk[1]['response']:
                 if not user_data[1]:
                     continue
@@ -186,16 +184,17 @@ class User_graph:
 
 def test():
     params = {
-    'access_token': 'access_token',
+    'access_token': 'vk1.a.clONUzPX1XFoDfLjstY_sXd3tysvPUWgPAQvaJETFrMwxGN4z9b576nNg1cYKr9X2oS-pb7hEhvu8oUYicZ9eKTHW-7WX7YEbCU_MmNyg0CFpYukNtxJGdeCrtR5RAiHmN5O2-CzgPlZ2HG7vsKYYJv_ZDn-4IBIfsObkbnkioOOYAcv3rV1XBCZxQAsvFNO',
     'v': 5.131,
     }
 
     graph = User_graph()
 
-    graph.add_user(647027693)
-    graph.add_user(560230860)
+    #graph.add_user(647027693) #Юрий Миронов
+    #graph.add_user(560230860) #Тимофей Новиков
+    graph.add_user(484154975)
 
-    for _ in range(2):
+    for _ in range(3):
         graph.get_friends(params, *graph.users.keys())
 
 
